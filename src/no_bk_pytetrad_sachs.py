@@ -46,6 +46,7 @@ import pytetrad_sachs_utilities as psu
 
 # Define data directory paths relative to project root
 DATA_DIR = PROJECT_ROOT / "data"
+OUT_DIR = PROJECT_ROOT / "results"
 TSV_DIR = DATA_DIR / "tsvs"
 
 visualize = True
@@ -78,7 +79,7 @@ if visualize:
     plt.title("Log2 Transformed Sachs Data (Observed Variables Only)")
     plt.xlabel("Log Expression Value")
     plt.ylabel("Frequency")
-    plt.savefig(DATA_DIR / "sachs_jittered_combined_log2.png")
+    plt.savefig(OUT_DIR / "sachs_jittered_combined_log2.png")
     plt.close()
 
     # visualize correlation
@@ -86,7 +87,7 @@ if visualize:
     plt.figure(figsize=(10, 6))
     sns.heatmap(corr, cmap="coolwarm")
     plt.title("Correlation Matrix")
-    plt.savefig(DATA_DIR / "sachs_jittered_combined_log2_corr.png")
+    plt.savefig(OUT_DIR / "sachs_jittered_combined_log2_corr.png")
     plt.close()
 
 ### create lists of known edges
@@ -124,7 +125,7 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(baseline_graph, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "{ground_truth_set}", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "{ground_truth_set}", cleanup=True, quiet=True)
 gdot.clear()
 
 ### Run FASK using pytetrad using parameters described in this manuscript: https://arxiv.org/pdf/1805.03108
@@ -166,7 +167,7 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(filtered_dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "no_bk_pytetrad_FASK_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "no_bk_pytetrad_FASK_graph", cleanup=True, quiet=True)
 gdot.clear()
 del fask_search, fask_str
 
@@ -203,7 +204,7 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "no_bk_pytetrad_FCI_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "no_bk_pytetrad_FCI_graph", cleanup=True, quiet=True)
 gdot.clear()
 del fci_search, fci_str
 
@@ -244,7 +245,7 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "no_bk_pytetrad_GES_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "no_bk_pytetrad_GES_graph", cleanup=True, quiet=True)
 gdot.clear()
 del ges_search, ges_str
 
@@ -281,7 +282,7 @@ stats_df.loc["clearn_FCI"] = cfci_stats.values()
 
 # create clearn graph output
 pdy = GraphUtils.to_pydot(g,labels=log_df.columns)
-pdy.write_png(DATA_DIR / "no_bk_clearn_FCI_graph.png")
+pdy.write_png(OUT_DIR / "no_bk_clearn_FCI_graph.png")
 
 ### Run GES using causal-learn
 # Seemingly no way to incorporate background knowledge with this implementation, so we will run GES without it
@@ -302,7 +303,7 @@ stats_df.loc["clearn_GES"] = cges_stats.values()
 
 # create clearn graph output
 pdy = GraphUtils.to_pydot(g)
-pdy.write_png(DATA_DIR / "clearn_GES_graph.png")
+pdy.write_png(OUT_DIR / "clearn_GES_graph.png")
 
 ### Run LiNGAM using causal-learn (since our data contains strong non-Gaussianities)
 # also no obvious way to incorporate background knowledge, so we will run LiNGAM without it
@@ -316,15 +317,15 @@ edge_df = psu.add_edges_column(edge_df, "clearn_LiNGAM", pattern, lingam_str)
 # Create visualization
 cg = psu.adjacency_to_graph(model.adjacency_matrix_, measured_cols)
 pdy = GraphUtils.to_pydot(cg.G, labels=measured_cols)
-pdy.write_png(DATA_DIR / "clearn_LiNGAM_graph.png")
+pdy.write_png(OUT_DIR / "clearn_LiNGAM_graph.png")
 
 # Compute statistics
 lingam_stats = psu.compute_statistics(baseline_graph, lingam_str, tetrad_data, node_names)
 stats_df.loc["clearn_LiNGAM"] = lingam_stats.values()
 
 # save final results
-edge_df.to_csv(DATA_DIR / "no_bk_computed_edges.tsv", sep="\t", index=False)
-stats_df.to_csv(DATA_DIR / "no_bk_stats.tsv", sep="\t", index=True)
+edge_df.to_csv(OUT_DIR / "no_bk_computed_edges.tsv", sep="\t", index=False)
+stats_df.to_csv(OUT_DIR / "no_bk_stats.tsv", sep="\t", index=True)
 
 # print out the statistics for each method tested
 print(stats_df)

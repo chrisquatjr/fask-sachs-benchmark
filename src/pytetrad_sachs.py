@@ -26,6 +26,19 @@ import graphviz as gviz
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Start JVM
+import jpype.imports
+import importlib.resources as importlib_resources
+
+jar_path = importlib_resources.files('pytetrad').joinpath('resources','tetrad-current.jar')
+jar_path = str(jar_path)
+if not jpype.isJVMStarted():
+    try:
+        jpype.startJVM(jpype.getDefaultJVMPath(), classpath=[jar_path])
+    except OSError:
+        print("can't load jvm")
+        pass
+
 # import pytetrad functions
 import pytetrad.tools.TetradSearch as ts
 
@@ -46,6 +59,7 @@ import pytetrad_sachs_utilities as psu
 
 # Define data directory paths relative to project root
 DATA_DIR = PROJECT_ROOT / "data"
+OUT_DIR = PROJECT_ROOT / "results"
 TSV_DIR = DATA_DIR / "tsvs"
 
 visualize = True
@@ -78,7 +92,7 @@ if visualize:
     plt.title("Log2 Transformed Sachs Data (Observed Variables Only)")
     plt.xlabel("Log Expression Value")
     plt.ylabel("Frequency")
-    plt.savefig(DATA_DIR / "sachs_jittered_combined_log2.png")
+    plt.savefig(OUT_DIR / "sachs_jittered_combined_log2.png")
     plt.close()
 
     # visualize correlation
@@ -86,7 +100,7 @@ if visualize:
     plt.figure(figsize=(10, 6))
     sns.heatmap(corr, cmap="coolwarm")
     plt.title("Correlation Matrix")
-    plt.savefig(DATA_DIR / "sachs_jittered_combined_log2_corr.png")
+    plt.savefig(OUT_DIR / "sachs_jittered_combined_log2_corr.png")
     plt.close()
 
 ### create lists of known edges
@@ -124,7 +138,7 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(baseline_graph, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "{ground_truth_set}", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / f"{ground_truth_set}", cleanup=True, quiet=True)
 gdot.clear()
 
 ### Run FASK using pytetrad using parameters described in this manuscript: https://arxiv.org/pdf/1805.03108
@@ -132,7 +146,7 @@ gdot.clear()
 fask_search = ts.TetradSearch(log_df)
 
 # run fask with background info
-fask_search = psu.add_background_knowledge(int_cols, measured_cols, fask_search)
+fask_search = psu.add_background_knowledge(int_cols=int_cols, measured_cols=measured_cols, obj=fask_search)
 fask_search.use_sem_bic()
 fask_search.run_fask(alpha=0.00001,
                      depth=-1,
@@ -165,14 +179,13 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(filtered_dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "pytetrad_FASK_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "pytetrad_FASK_graph", cleanup=True, quiet=True)
 gdot.clear()
-del fask_search, fask_str
 
 ### Run FCI using pytetrad
 
 fci_search = ts.TetradSearch(log_df)
-fci_search = psu.add_background_knowledge(fci_search, int_cols, measured_cols)
+fci_search = psu.add_background_knowledge(obj=fci_search, int_cols=int_cols, measured_cols=measured_cols)
 fci_search.use_fisher_z(alpha=0.005)
 fci_search.run_fci(depth=-1, 
                    stable_fas=True,
@@ -202,14 +215,13 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "pytetrad_FCI_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "pytetrad_FCI_graph", cleanup=True, quiet=True)
 gdot.clear()
-del fci_search, fci_str
 
 ### Run GES using pytetrad
 
 ges_search = ts.TetradSearch(log_df)
-ges_search = psu.add_background_knowledge(ges_search, int_cols, measured_cols)
+ges_search = psu.add_background_knowledge(obj=ges_search, int_cols=int_cols, measured_cols=measured_cols)
 ges_search.use_sem_bic()
 ges_search.run_fges(symmetric_first_step=False, 
                     max_degree=-1, 
@@ -218,8 +230,7 @@ ges_search.run_fges(symmetric_first_step=False,
                     )
 ges_str = ges_search.__str__()
 # Using two separate patterns - more flexible if the format might change
-ges_score = float(re.search(r'Score: (\d+\.\d+)', ges_str).group(1))
-ges_bic = float(re.search(r'BIC: (\d+\.\d+)', ges_str).group(1))
+ges_score = float(re.search(r'Score: (-?\d+\.\d+)', ges_str).group(1))
 ges_str = ges_str.partition('Graph Attributes:')[0]
 ges_str = psu.remove_edges(ges_str, int_cols)
 with open(DATA_DIR / "ges_str.txt", "w") as text_file:
@@ -242,9 +253,8 @@ gdot = gviz.Graph(format='png',
                              'overlap': 'scale',         # Prevents node overlap by scaling
                              'outputorder': 'edgesfirst'})
 psu.write_gdot(dag, gdot, node_mapping=node_names)
-gdot.render(filename=DATA_DIR / "pytetrad_GES_graph", cleanup=True, quiet=True)
+gdot.render(filename=OUT_DIR / "pytetrad_GES_graph", cleanup=True, quiet=True)
 gdot.clear()
-del ges_search, ges_str
 
 ### Run FCI using causal-learn
 
@@ -260,7 +270,7 @@ int_nodes = nodes[int_index:]
 measured_nodes = nodes[:int_index]
 
 # create background knowledge
-bk = psu.add_background_knowledge(int_nodes, measured_nodes, library="causallearn")
+bk = psu.add_background_knowledge(int_cols=int_nodes, measured_cols=measured_nodes, library="causallearn")
 g, edges = fci(dataset=log_array,
             independence_test_method="fisherz",
             alpha=0.005,
@@ -279,7 +289,7 @@ stats_df.loc["clearn_FCI"] = cfci_stats.values()
 
 # create clearn graph output
 pdy = GraphUtils.to_pydot(g,labels=log_df.columns)
-pdy.write_png(DATA_DIR / "clearn_FCI_graph.png")
+pdy.write_png(OUT_DIR / "clearn_FCI_graph.png")
 
 ### Run GES using causal-learn
 # Seemingly no way to incorporate background knowledge with this implementation, so we will run GES without it
@@ -300,7 +310,7 @@ stats_df.loc["clearn_GES"] = cges_stats.values()
 
 # create clearn graph output
 pdy = GraphUtils.to_pydot(g)
-pdy.write_png(DATA_DIR / "clearn_GES_graph.png")
+pdy.write_png(OUT_DIR / "clearn_GES_graph.png")
 
 ### Run LiNGAM using causal-learn (since our data contains strong non-Gaussianities)
 # also no obvious way to incorporate background knowledge, so we will run LiNGAM without it
@@ -314,15 +324,15 @@ edge_df = psu.add_edges_column(edge_df, "clearn_LiNGAM", pattern, lingam_str)
 # Create visualization
 cg = psu.adjacency_to_graph(model.adjacency_matrix_, measured_cols)
 pdy = GraphUtils.to_pydot(cg.G, labels=measured_cols)
-pdy.write_png(DATA_DIR / "clearn_LiNGAM_graph.png")
+pdy.write_png(OUT_DIR / "clearn_LiNGAM_graph.png")
 
 # Compute statistics
 lingam_stats = psu.compute_statistics(baseline_graph, lingam_str, tetrad_data, node_names)
 stats_df.loc["clearn_LiNGAM"] = lingam_stats.values()
 
 # save final results
-edge_df.to_csv(DATA_DIR / "computed_edges.tsv", sep="\t", index=False)
-stats_df.to_csv(DATA_DIR / "stats.tsv", sep="\t", index=True)
+edge_df.to_csv(OUT_DIR / "computed_edges.tsv", sep="\t", index=False)
+stats_df.to_csv(OUT_DIR / "stats.tsv", sep="\t", index=True)
 
 # print out the statistics for each method tested
 print(stats_df)
